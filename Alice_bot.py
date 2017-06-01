@@ -1,12 +1,12 @@
 import discord
 from discord.ext import commands
 import random
+import asyncio
 
-description = '''An example bot to showcase the discord.ext.commands extension
-module.
+description = '''Alice Nakiri on duty!'''
 
-There are a number of utility commands being showcased here.'''
-bot = commands.Bot(command_prefix='`', description=description)
+bot = commands.Bot(command_prefix='?', description=description, pm_help=True)
+
 
 @bot.event
 async def on_ready():
@@ -14,52 +14,40 @@ async def on_ready():
     print(bot.user.name)
     print(bot.user.id)
     print('------')
+    await bot.change_presence(game=discord.Game(name='Coding Manager 2017'))
+
+@bot.event
+async def on_message(message):
+	if message.author == bot.user:
+		return
+	if "alice" in message.content.lower() :
+		await bot.send_message(message.channel, "https://s-media-cache-ak0.pinimg.com/originals/0a/92/d7/0a92d7d7f15ba1e4e14449ec29271cb7.gif")
+		await bot.send_message(message.channel, "Stop talking about me!")
+
+	await bot.process_commands(message)
+
 
 @bot.command()
-async def add(left : int, right : int):
-    """Adds two numbers together."""
-    await bot.say(left + right)
+async def wobwob():
+	"""Shows an enjoyable gif. """
+	await bot.say('http://imgur.com/QSoL1ge')
 
+
+recipe_categories = ["chicken", "pizza", "cocktails", "pasta", "burgers", "sandwiches", "desserts", "salad"]
 @bot.command()
-async def roll(dice : str):
-    """Rolls a dice in NdN format."""
-    try:
-        rolls, limit = map(int, dice.split('d'))
-    except Exception:
-        await bot.say('Format has to be in NdN!')
-        return
+async def recipe(request_category : str):
+	"""Links a recipe from SeriousEats of the specified type. """
+	request_category = request_category.lower()
+	if request_category == "random":
+		recipe_category = random.choice(recipe_categories)
+	elif request_category in recipe_categories:
+		recipe_category = request_category
+	else:
+		await bot.say("Incorrect category, choose one of [chicken, pizza, cocktails, pasta, burgers, sandwiches, desserts, salad, random]")
+		return
+	print(recipe_category) 
 
-    result = ', '.join(str(random.randint(1, limit)) for r in range(rolls))
-    await bot.say(result)
 
-@bot.command(description='For when you wanna settle the score some other way')
-async def choose(*choices : str):
-    """Chooses between multiple choices."""
-    await bot.say(random.choice(choices))
 
-@bot.command()
-async def repeat(times : int, content='repeating...'):
-    """Repeats a message multiple times."""
-    for i in range(times):
-        await bot.say(content)
-
-@bot.command()
-async def joined(member : discord.Member):
-    """Says when a member joined."""
-    await bot.say('{0.name} joined in {0.joined_at}'.format(member))
-
-@bot.group(pass_context=True)
-async def cool(ctx):
-    """Says if a user is cool.
-
-    In reality this just checks if a subcommand is being invoked.
-    """
-    if ctx.invoked_subcommand is None:
-        await bot.say('No, {0.subcommand_passed} is not cool'.format(ctx))
-
-@cool.command(name='bot')
-async def _bot():
-    """Is the bot cool?"""
-    await bot.say('Yes, the bot is cool.')
 
 bot.run('MzE5NzM5ODYxOTc4MzE2ODEw.DBFcug.6H82mGImZexQHyuujZyJKqI9TpQ')
