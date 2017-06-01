@@ -62,4 +62,9 @@ async def _bot():
     """Is the bot cool?"""
     await bot.say('You better back the fuck up before you get smacked the fuck up')
 
+@bot.command(name='fish')
+async def fish():
+	""" posts the mugi fish gif """
+	await bot.say('https://media1.giphy.com/media/ezkeq9mDzGBuE/giphy.gif')
+
 bot.run('MzE5NzU0NTM5MjE1NDg2OTc3.DBFiNQ.O3nTIBSEIo6xS5riwmBNquvHxaQ')
