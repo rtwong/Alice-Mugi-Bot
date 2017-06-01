@@ -57,9 +57,9 @@ async def cool(ctx):
     if ctx.invoked_subcommand is None:
         await bot.say('No, {0.subcommand_passed} is not cool'.format(ctx))
 
-@cool.command(name='bot')
+@bot.command(name='mugi is not cool')
 async def _bot():
     """Is the bot cool?"""
-    await bot.say('Yes, the bot is cool.')
+    await bot.say('You better back the fuck up before you get smacked the fuck up')
 
 bot.run('MzE5NzU0NTM5MjE1NDg2OTc3.DBFiNQ.O3nTIBSEIo6xS5riwmBNquvHxaQ')
