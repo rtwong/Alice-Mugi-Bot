@@ -1,12 +1,13 @@
 import discord
 from discord.ext import commands
 import random
+import asyncio
+import sqlite3
 
-description = '''An example bot to showcase the discord.ext.commands extension
-module.
+description = '''MUGI WHAT THE FUUUCK. WHY WOULD YOU DO THIIIIS'''
+bot = commands.Bot(command_prefix='`', description=description, pm_help=True)
 
-There are a number of utility commands being showcased here.'''
-bot = commands.Bot(command_prefix='`', description=description)
+points = {}
 
 @bot.event
 async def on_ready():
@@ -14,9 +15,15 @@ async def on_ready():
     print(bot.user.name)
     print(bot.user.id)
     print('------')
+    db()
     await bot.change_presence(game=discord.Game(name='Why'))
+    await test()
+    #loop = asyncio.get_event_loop()
+    #loop.run_until_complete(test())
+    #loop.close()
 
-bot.remove_command('help')
+#bot.remove_command('help')
+
 
 #MUGI GIFS
 #
@@ -26,7 +33,23 @@ bot.remove_command('help')
 #
 #
 #
-
+def db():
+	""" gets points info from database """
+	conn = sqlite3.connect('mugi_points.sqlite')
+	c = conn.cursor()
+	# Connecting to the database file
+	table = """ CREATE TABLE IF NOT EXISTS Mugis (
+	id integer PRIMARY KEY, 
+	points integer NOT NULL
+	); """
+	# Creating a new SQLite table with 1 column
+	c.execute(table)
+	c.execute('SELECT * FROM Mugis')
+	rows = c.fetchall()
+	for row in rows:
+		points[str(row[0])] = row[1]
+	conn.commit()
+	conn.close()
 
 @bot.command()
 async def add(left : int, right : int):
@@ -60,6 +83,11 @@ async def repeat(times : int, content='repeating...'):
 async def joined(member : discord.Member):
     """Says when a member joined."""
     await bot.say('{0.name} joined in {0.joined_at}'.format(member))
+
+@bot.command(pass_context=True)
+async def lmao(ctx):
+    """Says when a member joined."""
+    await bot.say('Sent by: ' + str(ctx.message.author))
 
 @bot.group(pass_context=True)
 async def cool(ctx):
@@ -96,10 +124,41 @@ async def amaze():
 	""" posts the mugi jammin gif """
 	await bot.say('https://media.tenor.com/images/571aa142a20ea4886ddf9b187094ea3c/tenor.gif')
 
+async def test():
+	""" make currency """
+	while True:
+		mems = bot.get_all_members()
+		in_voice = set()
+		conn = sqlite3.connect('mugi_points.sqlite')
+		c = conn.cursor()
+		for mem in mems:
+			if mem.bot:
+				continue
+			elif mem.voice.voice_channel is not None and not mem.voice.is_afk:
+				in_voice.add(mem)
+				#serv = bot.servers
+				#for ser in serv:
+				#	for chan in ser.channels:
+				#		if chan.type is discord.ChannelType.text:
+				#			await bot.send_message(chan, "points lol")
+		for people in in_voice:
+			id = people.id
+			points[id] = points.get(id, 0) + 100
+			c.execute('INSERT OR REPLACE INTO Mugis (id, points) VALUES (' + str(id) + ', ' + str(points[id]) + ')')
+			
+		conn.commit()
+		conn.close()
+		await asyncio.sleep(3)
 
-@bot.command(name='help')
-async def help():
-	await bot.say('if u need help u dumb as fk')
+@bot.command(pass_context=True)
+async def mugis(ctx):
+	""" gets points """
+	await bot.say(str(ctx.message.author.nick) + " has " + str(points.get(ctx.message.author.id, 0)) + " mugi-o's!")
+
+
+#@bot.command(name='help')
+#async def help():
+#	await bot.say('if u need help u dumb as fk')
 
 @bot.event
 async def on_message(message):
