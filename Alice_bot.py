@@ -39,14 +39,35 @@ description = '''Alice Nakiri on duty!'''
 
 bot = commands.Bot(command_prefix='?', description=description, pm_help=True)
 
+member_points = {}
 
 @bot.event
 async def on_ready():
-    print('Logged in as')
-    print(bot.user.name)
-    print(bot.user.id)
-    print('------')
-    await bot.change_presence(game=discord.Game(name='Coding Manager 2017'))
+	print('Logged in as')
+	print(bot.user.name)
+	print(bot.user.id)
+	print('------')
+	await bot.change_presence(game=discord.Game(name='Coding Manager 2017'))
+
+	while True:
+		await point_counter()
+		await asyncio.sleep(10)
+
+
+
+async def point_counter():
+	currently_online = set()
+	members_list = bot.get_all_members()
+	for member in members_list:
+		if member.bot:
+			continue
+		if member.voice.voice_channel is not None and not member.voice.is_afk:
+			currently_online.add(member)
+
+	for member in currently_online:
+		member_points[member.id] = member_points.get(member.id, 0) + 10
+
+
 
 @bot.event
 async def on_message(message):
@@ -61,7 +82,7 @@ async def on_message(message):
 
 @bot.command()
 async def gifme():
-	"""Shows an enjoyable gif. """
+	"""Shows a random enjoyable gif. """
 	await bot.say(random.choice(alice_gifs))
 
 
@@ -94,6 +115,14 @@ async def recipe(request_category : str):
 	await bot.say(random.choice(recipe_recommendations))
 
 
+@bot.command(pass_context=True)
+async def bentos(ctx):
+	""" Shows how many Bentos you have! """
+	sender_id = ctx.message.author.id
+	if sender_id in member_points:
+		await bot.say("You currently have " + str(member_points[sender_id]) + " Bentos.")
+	else:
+		await bot.say("You currently have no Bentos, get cooking!")
 
 
 
