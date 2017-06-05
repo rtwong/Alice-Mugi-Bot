@@ -4,6 +4,8 @@ import random
 import asyncio
 import aiohttp
 from bs4 import BeautifulSoup
+import sqlite3
+import os
 
 
 
@@ -40,19 +42,7 @@ description = '''Alice Nakiri on duty!'''
 bot = commands.Bot(command_prefix='?', description=description, pm_help=True)
 
 member_points = {}
-
-@bot.event
-async def on_ready():
-	print('Logged in as')
-	print(bot.user.name)
-	print(bot.user.id)
-	print('------')
-	await bot.change_presence(game=discord.Game(name='Coding Manager 2017'))
-
-	while True:
-		await point_counter()
-		await asyncio.sleep(10)
-
+db_filename = "AliceBotPoints.sqlite"
 
 
 async def point_counter():
@@ -64,9 +54,38 @@ async def point_counter():
 		if member.voice.voice_channel is not None and not member.voice.is_afk:
 			currently_online.add(member)
 
+	conn = sqlite3.connect(db_filename)
+	c = conn.cursor()
 	for member in currently_online:
 		member_points[member.id] = member_points.get(member.id, 0) + 10
+		c.execute("INSERT or REPLACE into points_table (id, points) VALUES (%s, %s)" % (member.id, member_points[member.id]))
+	conn.commit()
+	conn.close()
 
+
+async def db_init():
+	conn = sqlite3.connect(db_filename)
+	c = conn.cursor()
+	c.execute('CREATE TABLE IF NOT EXISTS points_table (id INTEGER PRIMARY KEY, points INTEGER)')
+	users = c.execute('SELECT id, points from points_table').fetchall()
+	for user in users:
+		member_points[str(user[0])] = user[1]
+	conn.commit()
+	conn.close()
+
+
+@bot.event
+async def on_ready():
+	print('Logged in as')
+	print(bot.user.name)
+	print(bot.user.id)
+	print('------')
+	await bot.change_presence(game=discord.Game(name='?help for commands'))
+	await db_init()
+
+	while True:
+		await point_counter()
+		await asyncio.sleep(300)
 
 
 @bot.event
