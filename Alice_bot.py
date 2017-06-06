@@ -173,14 +173,10 @@ async def shokugeki(ctx, points_bet : int):
 
 	if roll <= opponent[1]:
 		member_points[betting_id] = member_points[betting_id] + payout
-		await bot.say("You beat %s, winning %d Bentos!" % (opponent[0], payout - points_bet))
-		await bot.say("You currently have %d Bentos." % member_points[betting_id])
-		await bot.say(opponent[4])
+		await bot.say("You beat %s, winning %d Bentos!" % (opponent[0], payout - points_bet) + "\n" + "You currently have %d Bentos." % member_points[betting_id] + "\n" + opponent[4])
 		await bot.say(opponent[6])
 	else:
-		await bot.say("You lose to %s, losing %d Bentos!" % (opponent[0], points_bet))
-		await bot.say("You currently have %d Bentos." % member_points[betting_id])
-		await bot.say(opponent[3])
+		await bot.say("You lose to %s, winning %d Bentos!" % (opponent[0], points_bet) + "\n" + "You currently have %d Bentos." % member_points[betting_id] + "\n" + opponent[3])
 		await bot.say(opponent[5])
 
 	conn = sqlite3.connect(db_filename)
