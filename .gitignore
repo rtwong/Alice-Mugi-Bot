@@ -48,3 +48,5 @@ Temporary Items
 
 
 *.sqlite
+secrets.py
+__pycache__

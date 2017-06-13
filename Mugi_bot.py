@@ -3,6 +3,7 @@ from discord.ext import commands
 import random
 import asyncio
 import sqlite3
+import secrets
 
 description = '''MUGI WHAT THE FUUUCK. WHY WOULD YOU DO THIIIIS'''
 bot = commands.Bot(command_prefix='`', description=description, pm_help=True)
@@ -183,4 +184,4 @@ async def on_message(message):
 
 	await bot.process_commands(message)
 
-bot.run('MzE5NzU0NTM5MjE1NDg2OTc3.DBFiNQ.O3nTIBSEIo6xS5riwmBNquvHxaQ')
+bot.run(secrets.mugi_token)
