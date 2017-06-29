@@ -18,6 +18,7 @@ alice_gifs = static.alice_gifs
 shokugeki_opponents = static.shokugeki_opponents
 member_points = {}
 db_filename = "AliceBotPoints.sqlite"
+rep_points = 0
 
 
 
@@ -253,6 +254,22 @@ class Music:
 bot = commands.Bot(command_prefix='?', description=description, pm_help=True)
 bot.add_cog(Music(bot))
 
+async def db_init():
+    global rep_points
+    conn = sqlite3.connect(db_filename)
+    c = conn.cursor()
+    c.execute('CREATE TABLE IF NOT EXISTS points_table (id INTEGER PRIMARY KEY, points INTEGER)')
+    c.execute('CREATE TABLE IF NOT EXISTS variables_table (variables STRING PRIMARY KEY, var_points INTEGER)')
+    users = c.execute('SELECT id, points from points_table').fetchall()
+    for user in users:
+        member_points[str(user[0])] = user[1]
+    variables = c.execute('SELECT variables, var_points from variables_table').fetchall()
+    # currently only 1 variable, rep
+    for variable in variables:
+        rep_points = variable[1]
+    conn.commit()
+    conn.close()
+
 async def point_counter():
     currently_online = set()
     members_list = bot.get_all_members()
@@ -271,16 +288,6 @@ async def point_counter():
     conn.close()
 
 
-async def db_init():
-    conn = sqlite3.connect(db_filename)
-    c = conn.cursor()
-    c.execute('CREATE TABLE IF NOT EXISTS points_table (id INTEGER PRIMARY KEY, points INTEGER)')
-    users = c.execute('SELECT id, points from points_table').fetchall()
-    for user in users:
-        member_points[str(user[0])] = user[1]
-    conn.commit()
-    conn.close()
-
 
 @bot.event
 async def on_ready():
@@ -298,13 +305,40 @@ async def on_ready():
 
 @bot.event
 async def on_message(message):
+    global rep_points
     if message.author == bot.user:
         return
-    if "alice" in message.content.lower() :
+    if "alice" in message.content.lower():
         await bot.send_message(message.channel, "https://s-media-cache-ak0.pinimg.com/originals/0a/92/d7/0a92d7d7f15ba1e4e14449ec29271cb7.gif")
         await bot.send_message(message.channel, "Stop talking about me!")
 
+    if "+rep" in message.content.lower():
+        rep_points = rep_points + 1
+        conn = sqlite3.connect(db_filename)
+        c = conn.cursor()
+        c.execute("INSERT or REPLACE into variables_table (variables, var_points) VALUES ('rep', %s)" % (str(rep_points)))
+        conn.commit()
+        conn.close()
+        await bot.send_message(message.channel, "+rep! We have " + str(rep_points) + " rep!")
+
+    if "-rep" in message.content.lower():
+        rep_points = rep_points - 1
+        conn = sqlite3.connect(db_filename)
+        c = conn.cursor()
+        c.execute("INSERT or REPLACE into variables_table (variables, var_points) VALUES ('rep', %s)" % (str(rep_points)))
+        conn.commit()
+        conn.close()
+        await bot.send_message(message.channel, "-rep! We have " + str(rep_points) + " rep!")
+
+
+
     await bot.process_commands(message)
+
+
+@bot.command()
+async def rep():
+    """ +1 to rep"""
+    await bot.say("We have " + str(rep_points) + " rep!")
 
 
 @bot.command()
