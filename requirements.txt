@@ -1,4 +1,4 @@
 youtube_dl==2017.6.12
 aiohttp==1.0.5
-discord.py==0.16.8
+discord.py
 beautifulsoup4==4.6.0

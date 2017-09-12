@@ -9,6 +9,7 @@ import os
 import youtube_dl
 import secrets
 import static
+import cards
 
 
 description = '''Alice Nakiri on duty!'''
@@ -21,238 +22,8 @@ db_filename = "AliceBotPoints.sqlite"
 rep_points = 0
 
 
-
-if not discord.opus.is_loaded():
-    discord.opus.load_opus('opus')
-
-class VoiceEntry:
-    def __init__(self, message, player):
-        self.requester = message.author
-        self.channel = message.channel
-        self.player = player
-
-    def __str__(self):
-        fmt = '*{0.title}* uploaded by {0.uploader} and requested by {1.display_name}'
-        duration = self.player.duration
-        if duration:
-            fmt = fmt + ' [length: {0[0]}m {0[1]}s]'.format(divmod(duration, 60))
-        return fmt.format(self.player, self.requester)
-
-class VoiceState:
-    def __init__(self, bot):
-        self.current = None
-        self.voice = None
-        self.bot = bot
-        self.play_next_song = asyncio.Event()
-        self.songs = asyncio.Queue()
-        self.skip_votes = set() # a set of user_ids that voted
-        self.audio_player = self.bot.loop.create_task(self.audio_player_task())
-
-    def is_playing(self):
-        if self.voice is None or self.current is None:
-            return False
-
-        player = self.current.player
-        return not player.is_done()
-
-    @property
-    def player(self):
-        return self.current.player
-
-    def skip(self):
-        self.skip_votes.clear()
-        if self.is_playing():
-            self.player.stop()
-
-    def toggle_next(self):
-        self.bot.loop.call_soon_threadsafe(self.play_next_song.set)
-
-    async def audio_player_task(self):
-        while True:
-            self.play_next_song.clear()
-            self.current = await self.songs.get()
-            await self.bot.send_message(self.current.channel, 'Now playing ' + str(self.current))
-            self.current.player.start()
-            await self.play_next_song.wait()
-
-class Music:
-    """Voice related commands.
-    Works in multiple servers at once.
-    """
-    def __init__(self, bot):
-        self.bot = bot
-        self.voice_states = {}
-
-    def get_voice_state(self, server):
-        state = self.voice_states.get(server.id)
-        if state is None:
-            state = VoiceState(self.bot)
-            self.voice_states[server.id] = state
-
-        return state
-
-    async def create_voice_client(self, channel):
-        voice = await self.bot.join_voice_channel(channel)
-        state = self.get_voice_state(channel.server)
-        state.voice = voice
-
-    def __unload(self):
-        for state in self.voice_states.values():
-            try:
-                state.audio_player.cancel()
-                if state.voice:
-                    self.bot.loop.create_task(state.voice.disconnect())
-            except:
-                pass
-
-    @commands.command(pass_context=True, no_pm=True)
-    async def join(self, ctx, *, channel : discord.Channel):
-        """Joins a voice channel."""
-        try:
-            await self.create_voice_client(channel)
-        except discord.ClientException:
-            await self.bot.say('Already in a voice channel...')
-        except discord.InvalidArgument:
-            await self.bot.say('This is not a voice channel...')
-        else:
-            await self.bot.say('Ready to play audio in ' + channel.name)
-
-    @commands.command(pass_context=True, no_pm=True)
-    async def summon(self, ctx):
-        """Summons the bot to join your voice channel."""
-        summoned_channel = ctx.message.author.voice_channel
-        if summoned_channel is None:
-            await self.bot.say('You are not in a voice channel.')
-            return False
-
-        state = self.get_voice_state(ctx.message.server)
-        if state.voice is None:
-            state.voice = await self.bot.join_voice_channel(summoned_channel)
-        else:
-            await state.voice.move_to(summoned_channel)
-
-        return True
-
-    @commands.command(pass_context=True, no_pm=True)
-    async def play(self, ctx, *, song : str):
-        """Plays a song.
-        If there is a song currently in the queue, then it is
-        queued until the next song is done playing.
-        This command automatically searches as well from YouTube.
-        The list of supported sites can be found here:
-        https://rg3.github.io/youtube-dl/supportedsites.html
-        """
-        state = self.get_voice_state(ctx.message.server)
-        opts = {
-            'default_search': 'auto',
-            'quiet': True,
-        }
-
-        if state.voice is None:
-            success = await ctx.invoke(self.summon)
-            if not success:
-                return
-
-        try:
-            player = await state.voice.create_ytdl_player(song, ytdl_options=opts, after=state.toggle_next, before_options="-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5")
-        except Exception as e:
-            fmt = 'An error occurred while processing this request: ```py\n{}: {}\n```'
-            await self.bot.send_message(ctx.message.channel, fmt.format(type(e).__name__, e))
-        else:
-            player.volume = 0.6
-            entry = VoiceEntry(ctx.message, player)
-            await self.bot.say('Enqueued ' + str(entry))
-            await state.songs.put(entry)
-
-    @commands.command(pass_context=True, no_pm=True)
-    async def volume(self, ctx, value : int):
-        """Sets the volume of the currently playing song."""
-
-        state = self.get_voice_state(ctx.message.server)
-        if state.is_playing():
-            player = state.player
-            player.volume = value / 100
-            await self.bot.say('Set the volume to {:.0%}'.format(player.volume))
-
-    @commands.command(pass_context=True, no_pm=True)
-    async def pause(self, ctx):
-        """Pauses the currently played song."""
-        state = self.get_voice_state(ctx.message.server)
-        if state.is_playing():
-            player = state.player
-            player.pause()
-
-    @commands.command(pass_context=True, no_pm=True)
-    async def resume(self, ctx):
-        """Resumes the currently played song."""
-        state = self.get_voice_state(ctx.message.server)
-        if state.is_playing():
-            player = state.player
-            player.resume()
-
-    @commands.command(pass_context=True, no_pm=True)
-    async def stop(self, ctx):
-        """Stops playing audio and leaves the voice channel.
-        This also clears the queue.
-        """
-        server = ctx.message.server
-        state = self.get_voice_state(server)
-
-        if state.is_playing():
-            player = state.player
-            player.stop()
-
-        try:
-            state.audio_player.cancel()
-            del self.voice_states[server.id]
-            await state.voice.disconnect()
-        except:
-            pass
-
-    @commands.command(pass_context=True, no_pm=True)
-    async def skip(self, ctx):
-        """Vote to skip a song. The song requester can automatically skip.
-        3 skip votes are needed for the song to be skipped.
-        """
-
-        state = self.get_voice_state(ctx.message.server)
-        if not state.is_playing():
-            await self.bot.say('Not playing any music right now...')
-            return
-
-        voter = ctx.message.author
-        if voter == state.current.requester:
-            await self.bot.say('Requester requested skipping song...')
-            state.skip()
-        elif voter.id not in state.skip_votes:
-            state.skip_votes.add(voter.id)
-            total_votes = len(state.skip_votes)
-            if total_votes >= 3:
-                await self.bot.say('Skip vote passed, skipping song...')
-                state.skip()
-            else:
-                await self.bot.say('Skip vote added, currently at [{}/3]'.format(total_votes))
-        else:
-            await self.bot.say('You have already voted to skip this song.')
-
-    @commands.command(pass_context=True, no_pm=True)
-    async def playing(self, ctx):
-        """Shows info about the currently played song."""
-
-        state = self.get_voice_state(ctx.message.server)
-        if state.current is None:
-            await self.bot.say('Not playing anything.')
-        else:
-            skip_count = len(state.skip_votes)
-            await self.bot.say('Now playing {} [skips: {}/3]'.format(state.current, skip_count))
-
-
-
-
-
-
 bot = commands.Bot(command_prefix='?', description=description, pm_help=True)
-bot.add_cog(Music(bot))
+#bot.add_cog(Music(bot))
 
 async def db_init():
     global rep_points
@@ -312,7 +83,7 @@ async def on_message(message):
         await bot.send_message(message.channel, "https://s-media-cache-ak0.pinimg.com/originals/0a/92/d7/0a92d7d7f15ba1e4e14449ec29271cb7.gif")
         await bot.send_message(message.channel, "Stop talking about me!")
 
-    if "+rep" in message.content.lower():
+    if ("+rep" in message.content.lower()) and (message.channel.name == "repchannel"):
         rep_points = rep_points + 1
         conn = sqlite3.connect(db_filename)
         c = conn.cursor()
@@ -321,7 +92,7 @@ async def on_message(message):
         conn.close()
         await bot.send_message(message.channel, "+rep! We have " + str(rep_points) + " rep!")
 
-    if "-rep" in message.content.lower():
+    if ("-rep" in message.content.lower()) and (message.channel.name == "repchannel"):
         rep_points = rep_points - 1
         conn = sqlite3.connect(db_filename)
         c = conn.cursor()
@@ -330,6 +101,8 @@ async def on_message(message):
         conn.close()
         await bot.send_message(message.channel, "-rep! We have " + str(rep_points) + " rep!")
 
+    if "feeling" in message.content.lower():
+        await bot.send_message(message.channel, "http://68.media.tumblr.com/7ecff5cbddd9ea983d0aae3a1a266f9b/tumblr_ofztu8uWSJ1u0bi6jo1_r1_500.gif")
 
 
     await bot.process_commands(message)
@@ -418,6 +191,198 @@ async def shokugeki(ctx, points_bet : int):
     conn.commit()
     conn.close()
 
+
+
+
+@bot.command(pass_context=True)
+async def addition(ctx):
+    """test"""
+    summ = 0
+    flag = True
+    while flag:
+        msg = await bot.wait_for_message(author=ctx.message.author, channel=ctx.message.channel)
+        if msg.content.lower() == "end":
+            flag = False
+        try:
+            num = int(msg.content)
+            summ = summ + num
+        except:
+            print("blarg")
+
+    await bot.say(summ)
+
+@bot.command(pass_context=True)
+async def blackjack(ctx, points_bet : int):
+    """Bento gambling in a game of Blackjack against Alice, 1.5x when winning with Blackjack, dealer must stand on a soft 17."""
+
+
+    betting_id = ctx.message.author.id
+    member_points[betting_id] = member_points.get(betting_id,0)
+
+    if points_bet < 500:
+        await bot.say("You must stake 500 or more Bentos!")
+        return
+    if points_bet > member_points[betting_id]:
+        await bot.say("You do not have that many Bentos!")
+        return
+
+    #member_points[betting_id] = member_points[betting_id] - points_bet
+
+    deck = cards.Deck(2)
+
+
+    shown_card = deck.draw()
+    hole_card = deck.draw()
+    dealer_hand = [hole_card, shown_card]
+
+    player_hand = []
+    player_hand.append(deck.draw())
+    player_hand.append(deck.draw())
+
+
+
+
+
+    player_playing = True
+    if check_blackjack(player_hand):
+        # already hit blackjack, don't need to play
+        player_playing = False
+        await bot.say("Alice's Cards :     :grey_question::question:     " + emotify_card(shown_card) + "\n"
+                    + "Your Cards    :" + emotify_hand(player_hand) +"\n"
+                    + "Blackjack, my turn!")
+
+
+
+    while player_playing:
+        await bot.say("Alice's Cards :     :grey_question::question:     " + emotify_card(shown_card) + "\n"
+                    + "Your Cards    :" + emotify_hand(player_hand) +"\n"
+                    + "Hit or Stand?")
+
+        msg = await bot.wait_for_message(author=ctx.message.author, channel=ctx.message.channel)
+        if (msg.content.lower() != "hit") and (msg.content.lower() != "stand"):
+            await bot.say("Please type 'Hit' or 'Stand' to make your move.")
+            continue
+        elif msg.content.lower() == "stand":
+            player_playing = False
+            await bot.say("Alrighty, my turn")
+        else:
+            new_card = deck.draw()
+            player_hand.append(new_card)
+            if check_blackjack(player_hand):
+                await bot.say("Alice's Cards :     :grey_question::question:     " + emotify_card(shown_card) + "\n"
+                            + "Your Cards    :" + emotify_hand(player_hand) +"\n"
+                            + "Blackjack, my turn!")
+                break
+            elif check_hand(player_hand) > 21:
+                await bot.say("Alice's Cards :     :grey_question::question:     " + emotify_card(shown_card) + "\n"
+                            + "Your Cards    :" + emotify_hand(player_hand) +"\n"
+                            + "Bust, loser!")
+                #resolve bad shit here
+                #resolve bad shit here
+                #resolve bad shit here
+                member_points[betting_id] = member_points[betting_id] - points_bet
+                await bot.say("You lose %d Bentos!" % (points_bet) + "\n" + "You currently have %d Bentos." % member_points[betting_id])
+                conn = sqlite3.connect(db_filename)
+                c = conn.cursor()
+                c.execute("INSERT or REPLACE into points_table (id, points) VALUES (%s, %s)" % (betting_id, member_points[betting_id]))
+                conn.commit()
+                conn.close()
+                return
+
+
+
+    await asyncio.sleep(3)
+    await bot.say("Alice's Cards :" + emotify_hand(dealer_hand) + "\n"
+                + "Your Cards    :" + emotify_hand(player_hand) +"\n")
+
+
+    #await bot.say(shown_card.suit +" " + shown_card.value + "\n" + hole_card.suit +" " + hole_card.value)
+
+    while check_hand(dealer_hand) < 17:
+        new_card = deck.draw() 
+        dealer_hand.append(new_card)
+        await bot.say("Alice's Cards :" + emotify_hand(dealer_hand) + "\n"
+                    + "Your Cards    :" + emotify_hand(player_hand) +"\n")
+        await asyncio.sleep(3)
+
+    if (check_hand(dealer_hand) > 21) or (check_hand(dealer_hand) < check_hand(player_hand)):
+        if check_hand(player_hand) == 21:
+            member_points[betting_id] = member_points[betting_id] + int(points_bet*1.5)
+            await bot.say("1.5x for having Blackjack!" + "\n"
+                         +"You win %d Bentos!" % (int(points_bet*1.5)) + "\n"
+                         +"You currently have %d Bentos." % member_points[betting_id])
+        else:
+            member_points[betting_id] = member_points[betting_id] + points_bet
+            await bot.say("Ugh, you win." + "\n"
+                         +"You win %d Bentos!" % (points_bet) + "\n"
+                         +"You currently have %d Bentos." % member_points[betting_id])
+        #resolve some good shit here
+    elif check_hand(dealer_hand) == check_hand(player_hand):
+        # tie
+        await bot.say("Guess no one wins this round!" + "\n" + "You currently have %d Bentos." % member_points[betting_id])
+    elif check_hand(dealer_hand) > check_hand(player_hand):
+        # player loss, loses initial bet
+        member_points[betting_id] = member_points[betting_id] - points_bet
+        await bot.say("Hahaha, you're a loser!" + "\n"
+                     +"You lose %d Bentos!" % (points_bet) + "\n" + "You currently have %d Bentos." % member_points[betting_id])
+
+    conn = sqlite3.connect(db_filename)
+    c = conn.cursor()
+    c.execute("INSERT or REPLACE into points_table (id, points) VALUES (%s, %s)" % (betting_id, member_points[betting_id]))
+    conn.commit()
+    conn.close()
+
+
+
+
+def check_blackjack(hand):
+    return check_hand(hand) == 21
+
+
+def check_hand(hand):
+    # returns value of the hand, accounting for Aces being 11 if possible, and 1 otherwise
+    hand_value = 0
+    aces = 0
+    for card in hand:
+        if card.value == "Ace":
+            aces += 1
+        else:
+            if card.value in ["Jack", "Queen", "King"]:
+                hand_value += 10
+            else:
+                hand_value += int(card.value)
+    for i in range(aces):
+        if hand_value+11 <= 21:
+            hand_value += 11
+        else:
+            hand_value += 1
+    return hand_value
+
+def emotify_card(card):
+    output_dict = {"Ace"      :":regional_indicator_a:",
+                   "King"     :":regional_indicator_k:",
+                   "Queen"    :":regional_indicator_q:",
+                   "Jack"     :":regional_indicator_j:",
+                   "10"       :":one::zero:",
+                   "9"        :":nine:",
+                   "8"        :":eight:",
+                   "7"        :":seven:",
+                   "6"        :":six:",
+                   "5"        :":five:",
+                   "4"        :":four:",
+                   "3"        :":three:",
+                   "2"        :":two:",
+                   "Diamonds" :":diamonds:",
+                   "Clubs"    :":clubs:",
+                   "Hearts"   :":hearts:",
+                   "Spades"   :":spades:"}
+    return output_dict[card.value] + output_dict[card.suit]
+
+def emotify_hand(hand):
+    return_string = ""
+    for card in hand:
+        return_string = return_string + "     " + emotify_card(card)
+    return return_string
 
 
 bot.run(secrets.alice_token)
