@@ -10,6 +10,7 @@ import youtube_dl
 import secrets
 import static
 import cards
+import re
 
 
 description = '''Alice Nakiri on duty!'''
@@ -20,7 +21,6 @@ shokugeki_opponents = static.shokugeki_opponents
 member_points = {}
 db_filename = "AliceBotPoints.sqlite"
 rep_points = 0
-
 
 bot = commands.Bot(command_prefix='?', description=description, pm_help=True)
 #bot.add_cog(Music(bot))
@@ -58,8 +58,6 @@ async def point_counter():
     conn.commit()
     conn.close()
 
-
-
 @bot.event
 async def on_ready():
     print('Logged in as')
@@ -73,13 +71,13 @@ async def on_ready():
         await point_counter()
         await asyncio.sleep(300)
 
-
 @bot.event
 async def on_message(message):
     global rep_points
     if message.author == bot.user:
         return
-    if "alice" in message.content.lower():
+    c = re.compile(r"\balice\b",re.I)
+    if len(c.findall(message.content.lower())) > 0:
         await bot.send_message(message.channel, "https://s-media-cache-ak0.pinimg.com/originals/0a/92/d7/0a92d7d7f15ba1e4e14449ec29271cb7.gif")
         await bot.send_message(message.channel, "Stop talking about me!")
 
@@ -107,18 +105,15 @@ async def on_message(message):
 
     await bot.process_commands(message)
 
-
 @bot.command()
 async def rep():
     """ +1 to rep"""
     await bot.say("We have " + str(rep_points) + " rep!")
 
-
 @bot.command()
 async def gifme():
     """Shows a random enjoyable gif. """
     await bot.say(random.choice(alice_gifs))
-
 
 @bot.command()
 async def recipe(request_category : str):
@@ -139,7 +134,6 @@ async def recipe(request_category : str):
         else:
             bot.say("File not found")
 
-
     recipe_recommendations = []
     soup = BeautifulSoup(webpage, "html.parser")
     for link in soup.find_all('a', {"class" : "module__image-container module__link"}):
@@ -147,7 +141,6 @@ async def recipe(request_category : str):
         if recipe_link != recipe_urls[recipe_category]:
             recipe_recommendations.append(recipe_link)
     await bot.say(random.choice(recipe_recommendations))
-
 
 @bot.command(pass_context=True)
 async def bentos(ctx):
@@ -157,7 +150,6 @@ async def bentos(ctx):
         await bot.say("You currently have " + str(member_points[sender_id]) + " Bentos.")
     else:
         await bot.say("You currently have no Bentos, get cooking!")
-
 
 @bot.command(pass_context=True)
 async def shokugeki(ctx, points_bet : int):
@@ -191,9 +183,6 @@ async def shokugeki(ctx, points_bet : int):
     conn.commit()
     conn.close()
 
-
-
-
 @bot.command(pass_context=True)
 async def addition(ctx):
     """test"""
@@ -215,7 +204,6 @@ async def addition(ctx):
 async def blackjack(ctx, points_bet : int):
     """Bento gambling in a game of Blackjack against Alice, 1.5x when winning with Blackjack, dealer must stand on a soft 17."""
 
-
     betting_id = ctx.message.author.id
     member_points[betting_id] = member_points.get(betting_id,0)
 
@@ -230,7 +218,6 @@ async def blackjack(ctx, points_bet : int):
 
     deck = cards.Deck(2)
 
-
     shown_card = deck.draw()
     hole_card = deck.draw()
     dealer_hand = [hole_card, shown_card]
@@ -239,10 +226,6 @@ async def blackjack(ctx, points_bet : int):
     player_hand.append(deck.draw())
     player_hand.append(deck.draw())
 
-
-
-
-
     player_playing = True
     if check_blackjack(player_hand):
         # already hit blackjack, don't need to play
@@ -250,8 +233,6 @@ async def blackjack(ctx, points_bet : int):
         await bot.say("Alice's Cards :     :grey_question::question:     " + emotify_card(shown_card) + "\n"
                     + "Your Cards    :" + emotify_hand(player_hand) +"\n"
                     + "Blackjack, my turn!")
-
-
 
     while player_playing:
         await bot.say("Alice's Cards :     :grey_question::question:     " + emotify_card(shown_card) + "\n"
@@ -277,9 +258,6 @@ async def blackjack(ctx, points_bet : int):
                 await bot.say("Alice's Cards :     :grey_question::question:     " + emotify_card(shown_card) + "\n"
                             + "Your Cards    :" + emotify_hand(player_hand) +"\n"
                             + "Bust, loser!")
-                #resolve bad shit here
-                #resolve bad shit here
-                #resolve bad shit here
                 member_points[betting_id] = member_points[betting_id] - points_bet
                 await bot.say("You lose %d Bentos!" % (points_bet) + "\n" + "You currently have %d Bentos." % member_points[betting_id])
                 conn = sqlite3.connect(db_filename)
@@ -289,14 +267,9 @@ async def blackjack(ctx, points_bet : int):
                 conn.close()
                 return
 
-
-
     await asyncio.sleep(3)
     await bot.say("Alice's Cards :" + emotify_hand(dealer_hand) + "\n"
                 + "Your Cards    :" + emotify_hand(player_hand) +"\n")
-
-
-    #await bot.say(shown_card.suit +" " + shown_card.value + "\n" + hole_card.suit +" " + hole_card.value)
 
     while check_hand(dealer_hand) < 17:
         new_card = deck.draw() 
@@ -316,7 +289,6 @@ async def blackjack(ctx, points_bet : int):
             await bot.say("Ugh, you win." + "\n"
                          +"You win %d Bentos!" % (points_bet) + "\n"
                          +"You currently have %d Bentos." % member_points[betting_id])
-        #resolve some good shit here
     elif check_hand(dealer_hand) == check_hand(player_hand):
         # tie
         await bot.say("Guess no one wins this round!" + "\n" + "You currently have %d Bentos." % member_points[betting_id])
@@ -332,12 +304,8 @@ async def blackjack(ctx, points_bet : int):
     conn.commit()
     conn.close()
 
-
-
-
 def check_blackjack(hand):
     return check_hand(hand) == 21
-
 
 def check_hand(hand):
     # returns value of the hand, accounting for Aces being 11 if possible, and 1 otherwise
@@ -383,6 +351,5 @@ def emotify_hand(hand):
     for card in hand:
         return_string = return_string + "     " + emotify_card(card)
     return return_string
-
 
 bot.run(secrets.alice_token)
