@@ -99,9 +99,9 @@ async def on_message(message):
         conn.close()
         await bot.send_message(message.channel, "-rep! We have " + str(rep_points) + " rep!")
 
-    if "feeling" in message.content.lower():
-        await bot.send_message(message.channel, "http://68.media.tumblr.com/7ecff5cbddd9ea983d0aae3a1a266f9b/tumblr_ofztu8uWSJ1u0bi6jo1_r1_500.gif")
-
+    #if "feeling" in message.content.lower():
+        #await bot.send_message(message.channel, "http://68.media.tumblr.com/7ecff5cbddd9ea983d0aae3a1a266f9b/tumblr_ofztu8uWSJ1u0bi6jo1_r1_500.gif")
+    #Dan if you're reading this you suck
 
     await bot.process_commands(message)
 
