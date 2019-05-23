@@ -76,10 +76,10 @@ async def on_message(message):
     global rep_points
     if message.author == bot.user:
         return
-    c = re.compile(r"\balice\b",re.I)
-    if len(c.findall(message.content.lower())) > 0:
-        await bot.send_message(message.channel, "https://s-media-cache-ak0.pinimg.com/originals/0a/92/d7/0a92d7d7f15ba1e4e14449ec29271cb7.gif")
-        await bot.send_message(message.channel, "Stop talking about me!")
+    #c = re.compile(r"\balice\b",re.I)
+    #if len(c.findall(message.content.lower())) > 0:
+        #await bot.send_message(message.channel, "https://s-media-cache-ak0.pinimg.com/originals/0a/92/d7/0a92d7d7f15ba1e4e14449ec29271cb7.gif")
+        #await bot.send_message(message.channel, "Stop talking about me!")
 
     if ("+rep" in message.content.lower()) and (message.channel.name == "repchannel"):
         rep_points = rep_points + 1
